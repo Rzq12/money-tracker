@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Apple, Home, ListOrdered, PieChart, Play, Plus, Target, UserRound } from 'lucide-react';
+import { Home, ListOrdered, PieChart, Plus, Target, UserRound } from 'lucide-react';
 import Logo from './Logo.jsx';
 import CatatDrawer from './CatatDrawer.jsx';
 import PremiumModal from './PremiumModal.jsx';
@@ -71,19 +71,17 @@ export default function AppShell({ children }) {
 
       <footer className="border-t border-gray-100 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-9 text-xs text-gray-500 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2.5"><Logo small /><span>© {new Date().getFullYear()} {BRAND}. Versi contoh.</span></div>
+          <div className="flex items-center gap-2.5"><Logo small /><span>© {new Date().getFullYear()} {BRAND}. Data tersimpan di perangkat ini.</span></div>
           <p className="mt-5 max-w-[580px] leading-4">{ADDRESS}</p>
           <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <Link to="/kebijakan-privasi" className="hover:text-gray-900">Privacy Policy</Link><span>·</span>
-              <Link to="/syarat-ketentuan" className="hover:text-gray-900">Terms &amp; Conditions</Link><span>·</span>
-              <Link to="/hapus-akun" className="hover:text-gray-900">Hapus Akun</Link><span>·</span>
-              <Link to="/tools/kalkulator-kpr" className="hover:text-gray-900">Kalkulator KPR</Link>
+              <Link to="/kebijakan-privasi" className="hover:text-gray-900">Kebijakan privasi</Link><span>·</span>
+              <Link to="/syarat-ketentuan" className="hover:text-gray-900">Syarat &amp; ketentuan</Link><span>·</span>
+              <Link to="/hapus-akun" className="hover:text-gray-900">Hapus data</Link><span>·</span>
+              <Link to="/tools/kalkulator-kpr" className="hover:text-gray-900">Kalkulator KPR</Link><span>·</span>
+              <Link to="/tools/kalkulator-pajak" className="hover:text-gray-900">Kalkulator pajak</Link>
             </div>
-            <div className="flex gap-2">
-              <span className="flex h-8 items-center gap-1.5 rounded-lg bg-black px-3 text-xs font-semibold text-white"><Apple className="h-4 w-4" />App Store</span>
-              <span className="flex h-8 items-center gap-1.5 rounded-lg bg-black px-3 text-xs font-semibold text-white"><Play className="h-3.5 w-3.5" />Google Play</span>
-            </div>
+            <Link to="/backup" className="font-semibold text-blue-700 hover:text-blue-800">Backup data</Link>
           </div>
         </div>
       </footer>

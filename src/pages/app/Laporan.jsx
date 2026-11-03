@@ -4,6 +4,7 @@ import { Calendar, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { ChartTip, TxRow } from './Dashboard.jsx';
 import { Card, CategoryIcon, Dropdown, Empty, PageTitle, Tabs, inputClass } from '../../components/ui.jsx';
 import { counted, findCategory, rootCategoryId, useStore } from '../../lib/store.jsx';
+import { tagCounts } from '../../lib/rules.js';
 import { addDays, compactRupiah, downloadText, fromISO, MONTHS, MONTHS_SHORT, pad, periodOf, rupiah, shiftPeriod, slashDate, toCSV, today } from '../../lib/format.js';
 
 const TABS = [['expense', 'Pengeluaran'], ['income', 'Pemasukan']];
@@ -28,7 +29,7 @@ function BreakdownRow({ icon, name, value, total, tone }) {
 }
 
 export default function Laporan() {
-  const { transactions, categories, wallets, startDay, notify, user, setPremiumOpen } = useStore();
+  const { transactions, categories, wallets, startDay, notify } = useStore();
   const now = today();
   const thisPeriod = useMemo(() => periodOf(now, startDay), [now, startDay]);
   const periods = useMemo(() => [
@@ -116,11 +117,7 @@ export default function Laporan() {
   const rangeOut = sumBy(range.filter((t) => t.type === 'expense'));
 
   const exportRange = (kind) => {
-    if (!user.premium) {
-      setPremiumOpen(true);
-      return;
-    }
-    const rows = [['Tanggal', 'Jenis', 'Kategori', 'Dompet', 'Catatan', 'Nominal'], ...range.map((t) => [t.date, t.type, findCategory(categories, t.categoryId).name, wallets.find((w) => w.id === t.walletId)?.name, t.note, t.amount])];
+    const rows = [['Tanggal', 'Jenis', 'Kategori', 'Dompet', 'Catatan', 'Nominal', 'Tag'], ...range.map((t) => [t.date, t.type, findCategory(categories, t.categoryId).name, wallets.find((w) => w.id === t.walletId)?.name, t.note, t.amount, (t.tags || []).join(' ')])];
     downloadText(`laporan-${from}-${to}.${kind}`, toCSV(rows));
     notify('Laporan diunduh.');
   };
@@ -277,6 +274,21 @@ export default function Laporan() {
             <p className="mt-2 text-xs italic text-gray-500">{range.some((t) => t.type === 'expense') ? `${range.filter((t) => t.type === 'expense').length} transaksi` : 'Tidak ada data'}</p>
           </div>
           <p className="mt-5 flex items-center justify-between text-xs font-semibold text-gray-800"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-indigo-500" />Net Flow</span><b className="text-sm text-indigo-600">{rangeIn - rangeOut >= 0 ? '+' : ''}{rupiah(rangeIn - rangeOut)}</b></p>
+        </Card>
+        <Card>
+          <h2 className="text-base font-semibold text-gray-900">Tag teratas</h2>
+          {tagCounts(range).length === 0 ? (
+            <Empty>Belum ada transaksi bertag di rentang ini.</Empty>
+          ) : (
+            <ul className="mt-3 list-none space-y-2 p-0">
+              {tagCounts(range).slice(0, 8).map((tag) => (
+                <li key={tag.name} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate text-gray-700">#{tag.name}</span>
+                  <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">{tag.count} transaksi</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       </div>
     </div>

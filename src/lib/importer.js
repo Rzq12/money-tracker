@@ -7,16 +7,17 @@ const MONTH_NAMES = {
 };
 
 export const parseCSV = (text) => {
-  const first = text.split(/\r?\n/, 1)[0] || '';
+  const source = String(text || '').replace(/^\uFEFF/, '');
+  const first = source.split(/\r?\n/, 1)[0] || '';
   const sep = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ',';
   const rows = [];
   let row = [];
   let cell = '';
   let quoted = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const c = text[i];
+  for (let i = 0; i < source.length; i += 1) {
+    const c = source[i];
     if (quoted) {
-      if (c === '"' && text[i + 1] === '"') { cell += '"'; i += 1; } else if (c === '"') quoted = false; else cell += c;
+      if (c === '"' && source[i + 1] === '"') { cell += '"'; i += 1; } else if (c === '"') quoted = false; else cell += c;
     } else if (c === '"') quoted = true;
     else if (c === sep) { row.push(cell); cell = ''; } else if (c === '\n') { row.push(cell.replace(/\r$/, '')); rows.push(row); row = []; cell = ''; } else cell += c;
   }
@@ -29,7 +30,7 @@ export const normalizeDate = (value) => {
   if (typeof value === 'number' && value > 20000) {
     // Excel stores dates as days since 1899-12-30.
     const d = new Date(Math.round((value - 25569) * 86400000));
-    return toISO(d);
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   }
   const s = String(value || '').trim();
   let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
@@ -62,25 +63,28 @@ export const inferType = (typeText, raw) => {
   const text = String(typeText || '').toLowerCase();
   if (/masuk|income|kredit|\bcr\b|credit/.test(text)) return 'income';
   if (/keluar|expense|debit|\bdb\b|debet/.test(text)) return 'expense';
-  if (typeof raw === 'number') return raw < 0 ? 'expense' : 'income';
-  return /^\s*-/.test(String(raw || '')) ? 'expense' : 'income';
+  if (typeof raw === 'number') return raw < 0 ? 'expense' : raw > 0 ? 'income' : 'expense';
+  const t = String(raw ?? '').trim();
+  if (/^-\s*/.test(t)) return 'expense';
+  if (/^\+\s*/.test(t)) return 'income';
+  return 'expense';
 };
 
 export const buildPreview = ({ rows, map, categories }) => {
   if (map.date === '' || map.amount === '' || map.date === undefined) return [];
-  const headers = rows[0] || [];
   return rows.slice(1).map((r) => {
     const raw = r[Number(map.amount)];
     const amount = typeof raw === 'number' ? Math.abs(raw) : parseAmountText(raw);
-    const typeText = map.type !== '' ? String(r[Number(map.type)] || '') : String(headers[Number(map.type)] || '');
+    const typeText = map.type !== '' ? String(r[Number(map.type)] || '') : '';
     const catText = map.category !== '' ? String(r[Number(map.category)] || '').toLowerCase() : '';
-    const match = categories.find((c) => c.name.toLowerCase() === catText || c.children?.some((x) => x.name.toLowerCase() === catText));
+    const parent = categories.find((c) => c.name.toLowerCase() === catText || c.children?.some((x) => x.name.toLowerCase() === catText));
+    const child = parent?.children?.find((x) => x.name.toLowerCase() === catText);
     return {
       date: normalizeDate(r[Number(map.date)]),
       note: map.note !== '' ? String(r[Number(map.note)] || '') : '',
       amount,
       type: inferType(typeText, raw),
-      categoryId: match?.id,
+      categoryId: child?.id || parent?.id,
     };
   });
 };

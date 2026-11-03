@@ -1,4 +1,5 @@
-import { MessageCircle, Send, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Mail, MessageCircle, Send, Users } from 'lucide-react';
 import { useStore } from '../../lib/store.jsx';
 
 const channels = [
@@ -18,7 +19,15 @@ export default function Integrasi() {
   return (
     <div className="mx-auto max-w-[896px] px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900">Integrasi</h1>
-      <p className="mt-1 text-sm text-gray-600">Hubungkan akunmu dengan platform lain untuk mencatat lebih mudah.</p>
+      <p className="mt-1 max-w-[640px] text-sm text-gray-600">Versi lokal ini tidak mengirim pesan atau membaca kotak masuk. Toggle di bawah hanya menyimpan preferensi. Untuk email bank, tempel isinya lewat Import.</p>
+      <Link to="/import" className="mt-5 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-5 hover:bg-blue-100">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-700"><Mail className="h-5 w-5" /></span>
+        <span className="min-w-0 flex-1">
+          <b className="block text-sm font-semibold text-gray-900">Email bank</b>
+          <span className="block text-sm text-gray-600">Salin isi email transaksi, lalu tempel di Import → Tempel teks.</span>
+        </span>
+        <span className="text-sm font-semibold text-blue-700">Buka →</span>
+      </Link>
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         {channels.map(({ key, name, Icon, chip, main, action }) => {
           const on = integrations[key];
@@ -32,7 +41,7 @@ export default function Integrasi() {
               <div className="divide-y divide-gray-100 px-5">
                 <div className="py-5">
                   <Heading>Akun pribadi</Heading>
-                  <p className="mt-2 text-sm text-gray-600">{on ? `${name} contoh terhubung.` : `Hubungkan ${name} kamu untuk mulai mencatat via chat.`}</p>
+                  <p className="mt-2 text-sm text-gray-600">{on ? `${name} ditandai terhubung sebagai preferensi.` : `Tandai ${name} sebagai kanal pilihanmu.`}</p>
                 </div>
                 <div className="py-5">
                   <Heading>Group terhubung</Heading>

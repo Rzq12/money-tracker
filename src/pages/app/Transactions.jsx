@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { Calendar, ChevronRight, Plus, Receipt, SlidersHorizontal, X } from 'lucide-react';
 import { Card, CategoryIcon, PrimaryButton, Segmented, inputClass } from '../../components/ui.jsx';
 import { findCategory, rootCategoryId, useStore } from '../../lib/store.jsx';
+import { normalizeTags, tagCounts } from '../../lib/rules.js';
+import { formatTransactionAmount } from '../../lib/money.js';
 import { addDays, digits, groupDigits, longDate, periodOf, rangeLabel, rupiah, shiftPeriod, today } from '../../lib/format.js';
 
 const Section = ({ title, children }) => (
@@ -49,6 +51,7 @@ export default function Transactions() {
   const [keyword, setKeyword] = useState('');
   const [cats, setCats] = useState([]);
   const [allCats, setAllCats] = useState(false);
+  const [tags, setTags] = useState([]);
   const [walletIds, setWalletIds] = useState(() => (params.get('wallet') ? [params.get('wallet')] : []));
   const [min, setMin] = useState(0);
   const [max, setMax] = useState(0);
@@ -59,20 +62,26 @@ export default function Transactions() {
 
   const expenseCats = categories.filter((c) => c.type === 'expense' || c.type === 'income');
   const shownCats = allCats ? expenseCats : expenseCats.slice(0, 5);
+  const availableTags = useMemo(() => tagCounts(transactions).slice(0, 12), [transactions]);
 
-  const hasFilters = type !== 'all' || keyword || cats.length || walletIds.length || min || max || preset !== 'period';
+  const hasFilters = type !== 'all' || keyword || cats.length || tags.length || walletIds.length || min || max || preset !== 'period';
   const clearAll = () => {
-    setPreset('period'); setRange(current); setType('all'); setKeyword(''); setCats([]); setWalletIds([]); setMin(0); setMax(0);
+    setPreset('period'); setRange(current); setType('all'); setKeyword(''); setCats([]); setTags([]); setWalletIds([]); setMin(0); setMax(0);
   };
 
   const rows = useMemo(() => transactions
     .filter((t) => t.date >= range.from && t.date <= range.to)
     .filter((t) => type === 'all' || t.type === type)
-    .filter((t) => !keyword || (t.note || '').toLowerCase().includes(keyword.toLowerCase()))
+    .filter((t) => {
+      const q = keyword.toLowerCase();
+      if (!q) return true;
+      return (t.note || '').toLowerCase().includes(q) || normalizeTags(t.tags).some((tag) => tag.toLowerCase().includes(q));
+    })
     .filter((t) => !cats.length || cats.includes(rootCategoryId(categories, t.categoryId)))
+    .filter((t) => !tags.length || normalizeTags(t.tags).some((tag) => tags.includes(tag)))
     .filter((t) => !walletIds.length || walletIds.includes(t.walletId) || walletIds.includes(t.toWalletId))
     .filter((t) => (!min || t.amount >= min) && (!max || t.amount <= max))
-    .sort((a, b) => b.date.localeCompare(a.date)), [transactions, range, type, keyword, cats, walletIds, min, max, categories]);
+    .sort((a, b) => b.date.localeCompare(a.date)), [transactions, range, type, keyword, cats, tags, walletIds, min, max, categories]);
 
   const totals = rows.reduce((acc, t) => {
     if (t.excluded) return acc;
@@ -118,8 +127,17 @@ export default function Transactions() {
         <Segmented className="!grid-cols-2" options={[['all', 'Semua'], ['expense', 'Pengeluaran'], ['income', 'Pemasukan'], ['transfer', 'Transfer']]} value={type} onChange={setType} />
       </Section>
       <Section title="Kata kunci">
-        <input aria-label="Kata kunci" className={`${inputClass} !min-h-[40px]`} placeholder="Cari di deskripsi atau catatan" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+        <input aria-label="Kata kunci" className={`${inputClass} !min-h-[40px]`} placeholder="Cari deskripsi atau tag" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
       </Section>
+      {availableTags.length > 0 && (
+        <Section title="Tag">
+          <div className="flex flex-wrap gap-1.5">
+            {availableTags.map((tag) => (
+              <Chip key={tag.name} active={tags.includes(tag.name)} onClick={() => toggle(tags, setTags, tag.name)}>#{tag.name}<span className="ml-1 text-gray-400">{tag.count}</span></Chip>
+            ))}
+          </div>
+        </Section>
+      )}
       <Section title="Kategori">
         {shownCats.map((c) => (
           <CheckRow key={c.id} checked={cats.includes(c.id)} onChange={() => toggle(cats, setCats, c.id)}>
@@ -207,11 +225,17 @@ export default function Transactions() {
                               <CategoryIcon icon={category.icon} />
                               <span className="min-w-0 flex-1">
                                 <b className="block truncate text-sm font-semibold text-gray-900">{t.note || category.name}</b>
-                                <span className="block truncate text-xs text-gray-500">{category.name} · {wallet?.name}{target ? ` → ${target.name}` : ''}{t.excluded ? ' · dikecualikan' : ''}</span>
+                                <span className="block truncate text-xs text-gray-500">
+                                  {category.name} · {wallet?.name}{target ? ` → ${target.name}` : ''}{t.excluded ? ' · dikecualikan' : ''}
+                                  {normalizeTags(t.tags).length > 0 ? ` · ${normalizeTags(t.tags).slice(0, 3).map((tag) => `#${tag}`).join(' ')}` : ''}
+                                </span>
                               </span>
-                              <b className={`whitespace-nowrap text-sm ${t.type === 'income' ? 'text-blue-700' : t.type === 'expense' ? 'text-orange-700' : 'text-gray-700'}`}>
-                                {t.type === 'income' ? '+' : t.type === 'expense' ? '-' : ''}{rupiah(t.amount)}
-                              </b>
+                              <span className="text-right">
+                                <b className={`block whitespace-nowrap text-sm ${t.type === 'income' ? 'text-blue-700' : t.type === 'expense' ? 'text-orange-700' : 'text-gray-700'}`}>
+                                  {t.type === 'income' ? '+' : t.type === 'expense' ? '-' : ''}{formatTransactionAmount(t)}
+                                </b>
+                                {t.currency && t.currency !== 'IDR' && <span className="block whitespace-nowrap text-[11px] text-gray-500">≈ {rupiah(t.amount)}</span>}
+                              </span>
                             </button>
                           </li>
                         );

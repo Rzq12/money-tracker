@@ -1,26 +1,43 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, ChevronDown, Pencil, Plus, RotateCcw, Tag, Trash2, Wallet } from 'lucide-react';
+import { ArrowLeft, Calendar, ChevronDown, Pencil, Plus, RotateCcw, Tag, Trash2, Wallet, Coins } from 'lucide-react';
 import { CategoryIcon, Confirm, Drawer, Label, MoneyInput, PrimaryButton, Segmented, WalletAvatar, inputClass } from '../../components/ui.jsx';
 import { useStore, walletBalance } from '../../lib/store.jsx';
 import { GROUPS } from '../../lib/seed.js';
-import { rupiah } from '../../lib/format.js';
+import { decimal, groupDecimal, rupiah } from '../../lib/format.js';
+import { CURRENCIES, currencySymbol, formatMoney, fromIdr, toIdr } from '../../lib/money.js';
 
-const TABS = [['kategori', 'Kategori', Tag], ['dompet', 'Dompet', Wallet], ['tanggal', 'Tanggal Awal Bulan', Calendar], ['reset', 'Reset Data', RotateCcw]];
+const TABS = [['kategori', 'Kategori', Tag], ['dompet', 'Dompet', Wallet], ['mata-uang', 'Kurs', Coins], ['tanggal', 'Tanggal Awal Bulan', Calendar], ['reset', 'Reset Data', RotateCcw]];
 const WALLET_TYPES = ['Tabungan', 'Tunai', 'E-wallet', 'Paylater', 'Kartu kredit', 'P2P lending'];
 const COLORS = ['#01478a', '#0288d1', '#29b6f6', '#4caf50', '#f59e0b', '#ef4444', '#a855f7'];
 
 function WalletForm({ wallet, onClose }) {
-  const { saveWallet, notify } = useStore();
+  const { saveWallet, notify, rates } = useStore();
   const [name, setName] = useState(wallet?.name || '');
-  const [initial, setInitial] = useState(wallet?.initial || 0);
+  const [currency, setCurrency] = useState(wallet?.currency || 'IDR');
+  const [initial, setInitial] = useState(() => {
+    if (!wallet) return 0;
+    return (wallet.currency || 'IDR') === 'IDR' ? wallet.initial : fromIdr(wallet.initial, wallet.currency, rates);
+  });
   const [type, setType] = useState(wallet?.type || 'Tabungan');
   const [color, setColor] = useState(wallet?.color || COLORS[1]);
+
+  const changeCurrency = (code) => {
+    const idr = toIdr(initial, currency, rates);
+    setInitial(code === 'IDR' ? Math.round(idr) : fromIdr(idr, code, rates));
+    setCurrency(code);
+  };
+
   return (
     <Drawer
       title={wallet ? 'Edit Dompet' : 'Tambah Dompet Baru'}
       onClose={onClose}
-      footer={<PrimaryButton className="min-h-[44px] w-full" disabled={!name.trim()} onClick={() => { saveWallet({ ...wallet, name: name.trim(), initial, type, color }); notify(wallet ? 'Dompet diperbarui.' : 'Dompet dibuat.'); onClose(); }}>{wallet ? 'Simpan Perubahan' : 'Buat Dompet'}</PrimaryButton>}
+      footer={<PrimaryButton className="min-h-[44px] w-full" disabled={!name.trim()} onClick={() => {
+        const value = currency === 'IDR' ? Math.round(initial) : toIdr(initial, currency, rates);
+        saveWallet({ ...wallet, name: name.trim(), initial: value, type, color, currency });
+        notify(wallet ? 'Dompet diperbarui.' : 'Dompet dibuat.');
+        onClose();
+      }}>{wallet ? 'Simpan Perubahan' : 'Buat Dompet'}</PrimaryButton>}
     >
       <div className="space-y-6">
         <div>
@@ -32,7 +49,32 @@ function WalletForm({ wallet, onClose }) {
           </div>
         </div>
         <div><Label htmlFor="w-name">Nama Dompet</Label><input id="w-name" className={inputClass} placeholder="Contoh: Bank Tabungan" value={name} onChange={(e) => setName(e.target.value)} /></div>
-        <div><Label htmlFor="w-initial">Saldo Awal</Label><MoneyInput id="w-initial" value={initial} onChange={setInitial} /></div>
+        <div>
+          <Label htmlFor="w-currency">Mata uang dompet</Label>
+          <select id="w-currency" className={inputClass} value={currency} onChange={(e) => changeCurrency(e.target.value)}>
+            {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code} · {c.label}</option>)}
+          </select>
+          {currency !== 'IDR' && <p className="mt-1.5 text-xs text-gray-500">1 {currency} = {rupiah(rates[currency])}. Semua transaksi tetap disimpan dalam rupiah.</p>}
+        </div>
+        <div>
+          <Label htmlFor="w-initial">Saldo Awal ({currency})</Label>
+          {currency === 'IDR' ? (
+            <MoneyInput id="w-initial" value={initial} onChange={setInitial} />
+          ) : (
+            <div className="flex min-h-[46px] items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
+              <span className="text-sm font-semibold text-gray-500">{currencySymbol(currency)}</span>
+              <input
+                id="w-initial"
+                inputMode="decimal"
+                className="w-full min-w-0 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+                placeholder="0"
+                value={groupDecimal(initial)}
+                onChange={(e) => setInitial(decimal(e.target.value))}
+              />
+            </div>
+          )}
+          {currency !== 'IDR' && <p className="mt-1.5 text-xs text-gray-500">≈ {rupiah(toIdr(initial, currency, rates))}</p>}
+        </div>
         <div>
           <Label>Tipe Dompet</Label>
           <div className="flex flex-wrap gap-2">
@@ -97,7 +139,7 @@ function CategoryForm({ type, category, onClose }) {
 }
 
 function Dompet() {
-  const { wallets, transactions, deleteWallet, notify } = useStore();
+  const { wallets, transactions, rates, deleteWallet, notify } = useStore();
   const [form, setForm] = useState(null);
   const [removing, setRemoving] = useState(null);
   const groups = [...new Set(wallets.map((w) => w.type))];
@@ -117,8 +159,9 @@ function Dompet() {
                 <button type="button" onClick={() => setForm(w)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
                   <WalletAvatar wallet={w} />
                   <span className="truncate text-sm font-medium text-gray-900">{w.name}</span>
+                  {w.currency && w.currency !== 'IDR' && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600">{w.currency}</span>}
                 </button>
-                <span className="text-sm font-medium text-gray-900">{rupiah(walletBalance(w, transactions))}</span>
+                <span className="text-sm font-medium text-gray-900">{formatMoney(walletBalance(w, transactions), w.currency || 'IDR', rates)}</span>
                 <button type="button" aria-label={`Hapus ${w.name}`} onClick={() => setRemoving(w)} className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"><Trash2 className="h-4 w-4" /></button>
               </li>
             ))}
@@ -171,6 +214,39 @@ function Kategori() {
   );
 }
 
+function MataUang() {
+  const { rates, setRate, notify } = useStore();
+  const changes = CURRENCIES.filter((c) => c.code !== 'IDR');
+  return (
+    <>
+      <h2 className="text-lg font-bold text-gray-900">Kurs mata uang</h2>
+      <p className="mt-1 max-w-[560px] text-sm text-gray-600">Nilai tukar dipakai saat mencatat transaksi di dompet dengan mata uang asing. Perbarui manual sesuai kurs yang kamu pakai.</p>
+      <ul className="mt-5 list-none divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-100 bg-white p-0 shadow-sm">
+        {changes.map((c) => (
+          <li key={c.code} className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-50 text-sm font-bold text-gray-700">{c.symbol}</span>
+            <div className="min-w-0 flex-1">
+              <b className="block text-sm font-semibold text-gray-900">{c.code} · {c.label}</b>
+              <span className="text-xs text-gray-500">1 {c.code} = {rupiah(rates[c.code])}</span>
+            </div>
+            <div className="w-40">
+              <MoneyInput
+                id={`rate-${c.code}`}
+                value={Math.round(rates[c.code] || 0)}
+                onChange={(v) => setRate(c.code, v)}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <PrimaryButton onClick={() => notify('Kurs disimpan otomatis saat diubah.')}>Simpan</PrimaryButton>
+        <span className="self-center text-xs text-gray-500">IDR selalu 1.</span>
+      </div>
+    </>
+  );
+}
+
 function Tanggal() {
   const { startDay, setStartDay, notify } = useStore();
   const [day, setDay] = useState(startDay);
@@ -178,22 +254,36 @@ function Tanggal() {
     <>
       <h2 className="text-lg font-bold text-gray-900">Tanggal Awal Bulan</h2>
       <p className="mt-1 max-w-[560px] text-sm text-gray-600">Atur tanggal mulai periode pencatatan bulanan. Pengaturan ini mempengaruhi perhitungan Laporan &amp; Anggaran kamu.</p>
-      <div className="mt-5 max-w-[420px] rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="mt-5 max-w-[460px] rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+        <div className="mb-3 flex flex-wrap gap-2">
+          <button type="button" onClick={() => setDay(1)} className={`min-h-[34px] rounded-full border px-3 text-xs font-semibold ${day === 1 ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}>Tanggal 1</button>
+          <button type="button" onClick={() => setDay(31)} className={`min-h-[34px] rounded-full border px-3 text-xs font-semibold ${day === 31 ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}>Akhir bulan</button>
+        </div>
         <div className="grid grid-cols-7 gap-1.5">
-          {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+          {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
             <button type="button" key={d} aria-pressed={day === d} onClick={() => setDay(d)} className={`h-10 rounded-lg text-sm font-medium ${day === d ? 'bg-blue-700 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>{d}</button>
           ))}
         </div>
-        <PrimaryButton className="mt-5 min-h-[44px] w-full" onClick={() => { setStartDay(day); notify(`Awal bulan: tanggal ${day}.`); }}>Simpan</PrimaryButton>
+        <p className="mt-3 text-xs leading-5 text-gray-500">Tanggal 29–31 dipakai sebagai akhir bulan di bulan yang lebih pendek.</p>
+        <PrimaryButton className="mt-4 min-h-[44px] w-full" onClick={() => { setStartDay(day); notify(`Awal bulan: ${day >= 28 ? 'akhir bulan' : `tanggal ${day}`}.`); }}>Simpan</PrimaryButton>
       </div>
     </>
   );
 }
 
 function Reset() {
-  const { transactions, contacts, integrations, resetData, restoreSample, notify } = useStore();
+  const { transactions, contacts, integrations, goals, holdings, recurring, rules, splits, resetData, restoreSample, notify } = useStore();
   const [confirm, setConfirm] = useState(false);
-  const rows = [['Transaksi', transactions.length], ['Catatan hutang piutang', contacts.length], ['Integrasi', Object.values(integrations).filter(Boolean).length]];
+  const rows = [
+    ['Transaksi', transactions.length],
+    ['Catatan hutang piutang', contacts.length],
+    ['Tujuan keuangan', goals.length],
+    ['Aset portofolio', holdings.length],
+    ['Transaksi berulang', recurring.length],
+    ['Aturan otomatis', rules.length],
+    ['Split bill', splits.length],
+    ['Integrasi', Object.values(integrations).filter(Boolean).length],
+  ];
   return (
     <>
       <h2 className="text-lg font-bold text-gray-900">Reset Data</h2>
@@ -201,12 +291,12 @@ function Reset() {
       <ul className="mt-5 max-w-[520px] list-none divide-y divide-gray-100 rounded-2xl border border-gray-100 bg-white p-0 shadow-sm">
         {rows.map(([name, n]) => <li key={name} className="flex min-h-[52px] items-center justify-between px-4 text-sm text-gray-800">{name}<b>{n}</b></li>)}
       </ul>
-      <p className="mt-3 text-xs text-gray-500">Dompet dan kategori tidak ikut terhapus.</p>
+      <p className="mt-3 text-xs text-gray-500">Dompet dan kategori tidak ikut terhapus. Unduh backup dulu di menu Backup.</p>
       <div className="mt-5 flex flex-wrap gap-3">
         <button type="button" onClick={() => setConfirm(true)} className="min-h-[44px] rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700">Reset Semua Data</button>
-        <button type="button" onClick={() => { restoreSample(); notify('Data contoh dipulihkan.'); }} className="min-h-[44px] rounded-xl border border-gray-200 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50">Pulihkan data contoh</button>
+        <button type="button" onClick={() => { restoreSample(); notify('Data contoh dipulihkan.'); }} className="min-h-[44px] rounded-xl border border-gray-200 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50">Isi dengan data contoh</button>
       </div>
-      {confirm && <Confirm title="Reset semua data?" text="Semua transaksi, anggaran, dan catatan hutang di browser ini akan dihapus." confirmLabel="Reset" onCancel={() => setConfirm(false)} onConfirm={() => { resetData(); notify('Data sudah direset.'); setConfirm(false); }} />}
+      {confirm && <Confirm title="Reset semua data?" text="Semua transaksi, anggaran, tujuan, aset, dan catatan hutang di browser ini akan dihapus." confirmLabel="Reset" onCancel={() => setConfirm(false)} onConfirm={() => { resetData(); notify('Data sudah direset.'); setConfirm(false); }} />}
     </>
   );
 }
@@ -234,6 +324,7 @@ export default function Pengaturan() {
         <div className="min-w-0 pt-1">
           {tab === 'dompet' && <Dompet />}
           {tab === 'kategori' && <Kategori />}
+          {tab === 'mata-uang' && <MataUang />}
           {tab === 'tanggal' && <Tanggal />}
           {tab === 'reset' && <Reset />}
         </div>

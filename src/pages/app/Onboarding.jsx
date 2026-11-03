@@ -26,7 +26,7 @@ export default function Onboarding() {
     }
   };
   const done = () => {
-    finishOnboarding();
+    finishOnboarding(answers);
     navigate('/dashboard', { replace: true });
   };
   const next = () => (step === STEPS.length - 1 ? done() : setStep(step + 1));

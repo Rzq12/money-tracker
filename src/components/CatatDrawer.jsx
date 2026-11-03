@@ -1,9 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronRight, MessageCircle, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, ImagePlus, MessageCircle, Mic, MicOff, Search, Trash2, X } from 'lucide-react';
 import { CategoryIcon, Confirm, Drawer, Label, MoneyInput, PrimaryButton, Segmented, Toggle, inputClass } from './ui.jsx';
-import { findCategory, useStore, walletBalance } from '../lib/store.jsx';
-import { rupiah, today } from '../lib/format.js';
+import { findCategory, useStore } from '../lib/store.jsx';
+import { decimal, groupDecimal, round2, rupiah, today } from '../lib/format.js';
+import { currencySymbol, formatMoney, fromIdr, toIdr } from '../lib/money.js';
+import { normalizeTags } from '../lib/rules.js';
+import { parseEntry } from '../lib/parse.js';
+import { compressImage } from '../lib/image.js';
+import { useSpeech } from '../lib/speech.js';
 
 const TYPES = [['expense', 'Pengeluaran'], ['income', 'Pemasukan'], ['transfer', 'Transfer']];
 
@@ -57,11 +62,20 @@ function CategoryGrid({ type, onPick }) {
 }
 
 export default function CatatDrawer() {
-  const { catat, closeCatat, categories, wallets, transactions, saveTransaction, deleteTransaction, notify, features } = useStore();
+  const {
+    catat, closeCatat, categories, wallets, transactions, rates, saveTransaction, deleteTransaction, notify, features,
+  } = useStore();
   const navigate = useNavigate();
   const editing = Boolean(catat.id);
   const [type, setType] = useState(catat.type || 'expense');
   const [step, setStep] = useState(editing || catat.type === 'transfer' ? 'form' : 'category');
+  const baseWallet = wallets.find((w) => w.id === (catat.walletId || wallets[0]?.id));
+  const [currency, setCurrency] = useState(catat.currency || baseWallet?.currency || 'IDR');
+  const [raw, setRaw] = useState(() => {
+    if (catat.originalAmount !== undefined && catat.originalAmount !== null) return Number(catat.originalAmount) || 0;
+    const code = catat.currency || baseWallet?.currency || 'IDR';
+    return code === 'IDR' ? Number(catat.amount) || 0 : fromIdr(catat.amount || 0, code, rates);
+  });
   const [form, setForm] = useState({
     amount: catat.amount || 0,
     note: catat.note || '',
@@ -70,10 +84,35 @@ export default function CatatDrawer() {
     walletId: catat.walletId || wallets[0]?.id || '',
     toWalletId: catat.toWalletId || '',
     excluded: Boolean(catat.excluded),
+    tags: normalizeTags(catat.tags),
+    receipt: catat.receipt || '',
   });
+  const [tagText, setTagText] = useState('');
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(false);
+  const [reading, setReading] = useState(false);
+  const photoInput = useRef(null);
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+
+  const setRawAmount = (value) => {
+    setRaw(value);
+    set('amount', currency === 'IDR' ? Math.round(value) : toIdr(value, currency, rates));
+  };
+
+  const applySpeech = (text) => {
+    const entry = parseEntry(text);
+    if (!entry) {
+      set('note', text.trim());
+      setError('Nominal tidak ditemukan. Isi manual ya.');
+      return;
+    }
+    setType(entry.type);
+    setRaw(currency === 'IDR' ? entry.amount : fromIdr(entry.amount, currency, rates));
+    setForm((f) => ({ ...f, note: entry.note, categoryId: entry.categoryId, amount: entry.amount, date: entry.date }));
+    setError('');
+    setStep('form');
+  };
+  const speech = useSpeech(applySpeech);
 
   const changeType = (next) => {
     setType(next);
@@ -82,12 +121,51 @@ export default function CatatDrawer() {
     setStep(next === 'transfer' ? 'form' : 'category');
   };
 
+  const changeWallet = (id) => {
+    const next = wallets.find((w) => w.id === id);
+    const code = next?.currency || 'IDR';
+    setCurrency(code);
+    setRaw(form.amount ? fromIdr(form.amount, code, rates) : 0);
+    set('walletId', id);
+  };
+
+  const addTag = (value) => {
+    const list = normalizeTags([...form.tags, value]);
+    set('tags', list);
+    setTagText('');
+  };
+
+  const pickPhoto = async (file) => {
+    if (!file) return;
+    setReading(true);
+    setError('');
+    try {
+      const data = await compressImage(file);
+      set('receipt', data);
+    } catch (err) {
+      setError(err.message || 'Foto tidak bisa dibaca.');
+    } finally {
+      setReading(false);
+    }
+  };
+
   const wallet = wallets.find((w) => w.id === form.walletId);
-  const balance = wallet ? walletBalance(wallet, transactions.filter((t) => t.id !== catat.id)) : 0;
+  const balance = wallet ? transactions.filter((t) => t.id !== catat.id).reduce((sum, t) => {
+    if (t.type === 'income' && t.walletId === wallet.id) return sum + t.amount;
+    if (t.type === 'expense' && t.walletId === wallet.id) return sum - t.amount;
+    if (t.type === 'transfer') {
+      if (t.walletId === wallet.id) return sum - t.amount;
+      if (t.toWalletId === wallet.id) return sum + t.amount;
+    }
+    return sum;
+  }, Number(wallet.initial) || 0) : 0;
   const after = balance + (type === 'income' ? form.amount : -form.amount);
+  const foreign = currency !== 'IDR';
+  const converted = foreign ? toIdr(raw, currency, rates) : form.amount;
 
   const save = () => {
-    if (!form.amount) return setError('Nominal belum diisi.');
+    const finalAmount = currency === 'IDR' ? Math.round(raw) : toIdr(raw, currency, rates);
+    if (!finalAmount) return setError('Nominal belum diisi.');
     if (!form.walletId) return setError(type === 'transfer' ? 'Pilih dompet asal.' : 'Pilih dompet dulu.');
     if (type === 'transfer') {
       if (!form.toWalletId) return setError('Pilih dompet tujuan.');
@@ -95,7 +173,16 @@ export default function CatatDrawer() {
     } else if (!form.categoryId) {
       return setError('Pilih kategori dulu.');
     }
-    saveTransaction({ ...form, id: catat.id, type, categoryId: type === 'transfer' ? 'transfer' : form.categoryId });
+    const payload = {
+      ...form,
+      id: catat.id,
+      type,
+      amount: finalAmount,
+      categoryId: type === 'transfer' ? 'transfer' : form.categoryId,
+      currency,
+      originalAmount: foreign ? round2(raw) : null,
+    };
+    saveTransaction(payload);
     notify(editing ? 'Transaksi diperbarui.' : 'Transaksi tersimpan.');
     closeCatat();
     return undefined;
@@ -147,25 +234,64 @@ export default function CatatDrawer() {
                 <span className="flex-1 text-sm font-semibold text-gray-900">{category ? category.name : 'Pilih Kategori'}</span>
                 <span className="text-sm font-semibold text-blue-700">Ubah</span>
               </button>
+              {form.categoryId === 'lain-lain' && <p className="mt-1.5 text-xs text-gray-500">Aturan otomatis akan mencoba memilih kategori dari catatan.</p>}
             </div>
           )}
+
           <div>
-            <Label htmlFor="tx-amount">Nominal</Label>
-            <MoneyInput id="tx-amount" large value={form.amount} onChange={(v) => set('amount', v)} autoFocus={!editing} />
+            <div className="mb-2 flex items-end justify-between gap-2">
+              <div>
+                <Label htmlFor="tx-amount">Nominal {foreign ? `(${currency})` : ''}</Label>
+                {foreign && <p className="-mt-1 text-xs text-gray-500">1 {currency} = {rupiah(rates[currency])}</p>}
+              </div>
+            </div>
+            {foreign ? (
+              <div className="flex min-h-[60px] items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
+                <span className="text-lg font-semibold text-gray-500">{currencySymbol(currency)}</span>
+                <input
+                  id="tx-amount"
+                  inputMode="decimal"
+                  autoFocus={!editing}
+                  className="w-full min-w-0 bg-transparent text-2xl font-bold text-gray-900 placeholder:text-gray-400 focus:outline-none"
+                  placeholder="0"
+                  value={groupDecimal(raw)}
+                  onChange={(e) => setRawAmount(decimal(e.target.value))}
+                />
+              </div>
+            ) : (
+              <MoneyInput id="tx-amount" large value={raw} onChange={setRawAmount} autoFocus={!editing} />
+            )}
+            {foreign && <p className="mt-1.5 text-xs text-gray-500">≈ {rupiah(converted)}</p>}
           </div>
+
           <div>
-            <Label htmlFor="tx-note">Catatan <span className="font-normal normal-case">(opsional)</span></Label>
-            <input id="tx-note" className={inputClass} placeholder="Deskripsi singkat..." value={form.note} onChange={(e) => set('note', e.target.value)} />
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <Label htmlFor="tx-note">
+                Catatan <span className="font-normal normal-case">(opsional)</span>
+              </Label>
+              <button
+                type="button"
+                onClick={() => { if (!speech.supported) setError('Browser ini belum mendukung input suara.'); else speech.toggle(); }}
+                aria-pressed={speech.listening}
+                title={speech.supported ? 'Catat dengan suara' : 'Input suara tidak didukung browser ini'}
+                className={`flex h-8 w-8 items-center justify-center rounded-full border ${speech.listening ? 'border-red-200 bg-red-50 text-red-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+              >
+                {speech.listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </button>
+            </div>
+            <input id="tx-note" className={inputClass} placeholder={speech.listening ? 'Mendengarkan…' : 'Deskripsi singkat...'} value={form.note} onChange={(e) => set('note', e.target.value)} />
           </div>
+
           <div>
             <Label htmlFor="tx-date">Tanggal</Label>
-            <input id="tx-date" type="date" className={inputClass} value={form.date} onChange={(e) => set('date', e.target.value)} />
+            <input id="tx-date" type="date" max={today()} className={inputClass} value={form.date} onChange={(e) => set('date', e.target.value || today())} />
           </div>
+
           <div>
             <Label htmlFor="tx-wallet">{type === 'transfer' ? 'Dompet Asal' : 'Dompet / Rekening'}</Label>
-            <select id="tx-wallet" className={inputClass} value={form.walletId} onChange={(e) => set('walletId', e.target.value)}>
+            <select id="tx-wallet" className={inputClass} value={form.walletId} onChange={(e) => changeWallet(e.target.value)}>
               <option value="">-- Pilih Dompet --</option>
-              {wallets.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              {wallets.map((w) => <option key={w.id} value={w.id}>{w.name}{w.currency && w.currency !== 'IDR' ? ` (${w.currency})` : ''}</option>)}
             </select>
           </div>
           {type === 'transfer' && (
@@ -179,10 +305,54 @@ export default function CatatDrawer() {
           )}
           {wallet && (
             <div className="rounded-xl bg-gray-50 p-3 text-sm text-gray-600">
-              <p className="flex justify-between"><span>Saldo saat ini</span><b className="text-gray-900">{rupiah(balance)}</b></p>
-              <p className="mt-1 flex justify-between"><span>Setelah transaksi</span><b className={after < 0 ? 'text-red-600' : 'text-gray-900'}>{rupiah(after)}</b></p>
+              <p className="flex justify-between"><span>Saldo saat ini</span><b className="text-gray-900">{formatMoney(balance, currency, rates)}</b></p>
+              <p className="mt-1 flex justify-between"><span>Setelah transaksi</span><b className={after < 0 ? 'text-red-600' : 'text-gray-900'}>{formatMoney(after, currency, rates)}</b></p>
             </div>
           )}
+
+          {features.tag && (
+            <div>
+              <Label htmlFor="tx-tag">Tag <span className="font-normal normal-case">(opsional)</span></Label>
+              {form.tags.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {form.tags.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                      #{tag}
+                      <button type="button" aria-label={`Hapus tag ${tag}`} onClick={() => set('tags', form.tags.filter((x) => x !== tag))} className="rounded-full p-0.5 hover:bg-blue-100"><X className="h-3 w-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <input
+                id="tx-tag"
+                className={inputClass}
+                placeholder="liburan, kerja… (Enter untuk menambah)"
+                value={tagText}
+                onChange={(e) => { if (e.target.value.endsWith(',')) addTag(e.target.value.slice(0, -1)); else setTagText(e.target.value); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (tagText.trim()) addTag(tagText); } }}
+                onBlur={() => { if (tagText.trim()) addTag(tagText); }}
+              />
+            </div>
+          )}
+
+          {features.struk && (
+            <div>
+              <Label>Foto struk <span className="font-normal normal-case">(opsional)</span></Label>
+              {form.receipt ? (
+                <div className="relative overflow-hidden rounded-xl border border-gray-200">
+                  <img src={form.receipt} alt="Foto struk transaksi" className="max-h-48 w-full object-contain bg-gray-50" />
+                  <button type="button" aria-label="Hapus foto struk" onClick={() => set('receipt', '')} className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow hover:bg-white"><X className="h-4 w-4" /></button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => photoInput.current?.click()} disabled={reading} className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 text-sm font-semibold text-gray-600 hover:border-blue-400 hover:text-blue-700 disabled:opacity-60">
+                  {reading ? 'Memproses foto…' : <><ImagePlus className="h-[18px] w-[18px]" /> Lampirkan foto struk</>}
+                </button>
+              )}
+              <input ref={photoInput} type="file" accept="image/*" capture="environment" className="hidden" aria-label="Pilih foto struk" onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ''; }} />
+              <p className="mt-1 text-xs text-gray-400">Foto disimpan di perangkat ini dan ikut dalam backup.</p>
+            </div>
+          )}
+
           {type !== 'transfer' && (
             <div className="flex items-center justify-between gap-3">
               <span><b className="block text-sm font-semibold text-gray-900">Exclude dari perhitungan</b><span className="text-xs text-gray-500">Tidak dihitung di laporan &amp; anggaran</span></span>

@@ -48,9 +48,9 @@ export const Label = ({ children, htmlFor }) => (
 
 export const inputClass = 'w-full min-h-[46px] rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
 
-export const MoneyInput = ({ value, onChange, id, placeholder = '0', autoFocus = false, large = false }) => (
+export const MoneyInput = ({ value, onChange, id, placeholder = '0', autoFocus = false, large = false, symbol = 'Rp' }) => (
   <div className={`flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 ${large ? 'min-h-[60px]' : 'min-h-[46px]'}`}>
-    <span className={`${large ? 'text-lg' : 'text-sm'} font-semibold text-gray-500`}>Rp</span>
+    <span className={`${large ? 'text-lg' : 'text-sm'} font-semibold text-gray-500`}>{symbol}</span>
     <input
       id={id}
       inputMode="numeric"
@@ -161,17 +161,57 @@ export const Dropdown = ({ value, options, onChange, label, align = 'right', cla
   );
 };
 
+const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/** Locks scrolling, traps Tab inside the panel, and restores focus on close. */
+const useDialog = (onClose, panel) => {
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const node = panel.current;
+    const first = node?.querySelector(FOCUSABLE);
+    (first || node)?.focus?.();
+
+    const keydown = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close.current();
+        return;
+      }
+      if (e.key !== 'Tab' || !node) return;
+      const items = [...node.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+      if (items.length === 0) return;
+      const start = items[0];
+      const end = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === start || !node.contains(document.activeElement))) {
+        e.preventDefault();
+        end.focus();
+      } else if (!e.shiftKey && document.activeElement === end) {
+        e.preventDefault();
+        start.focus();
+      }
+    };
+
+    document.addEventListener('keydown', keydown, true);
+    return () => {
+      document.removeEventListener('keydown', keydown, true);
+      document.body.style.overflow = overflow;
+      previous?.focus?.();
+    };
+  }, [panel]);
+};
+
 /** The panel that slides in from the right for forms. */
 export const Drawer = ({ title, onClose, children, footer, width = 'md:w-[448px]' }) => {
-  useEffect(() => {
-    const esc = (e) => e.key === 'Escape' && onClose();
-    document.addEventListener('keydown', esc);
-    return () => document.removeEventListener('keydown', esc);
-  }, [onClose]);
+  const panel = useRef(null);
+  useDialog(onClose, panel);
   return (
     <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="fade-in absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={onClose} />
-      <div className={`drawer-in absolute inset-y-0 right-0 flex w-full flex-col bg-white shadow-2xl ${width}`}>
+      <div className="fade-in absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div ref={panel} tabIndex={-1} className={`drawer-in absolute inset-y-0 right-0 flex w-full flex-col bg-white shadow-2xl focus:outline-none ${width}`}>
         <div className="flex h-[69px] shrink-0 items-center justify-between border-b border-gray-100 px-6">
           <h2 className="text-lg font-bold text-gray-900">{title}</h2>
           <button type="button" onClick={onClose} aria-label="Tutup" className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 -mr-2">
@@ -186,15 +226,12 @@ export const Drawer = ({ title, onClose, children, footer, width = 'md:w-[448px]
 };
 
 export const Modal = ({ title, onClose, children, width = 'max-w-md' }) => {
-  useEffect(() => {
-    const esc = (e) => e.key === 'Escape' && onClose();
-    document.addEventListener('keydown', esc);
-    return () => document.removeEventListener('keydown', esc);
-  }, [onClose]);
+  const panel = useRef(null);
+  useDialog(onClose, panel);
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="fade-in absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={onClose} />
-      <div className={`fade-in relative max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl ${width}`}>{children}</div>
+      <div className="fade-in absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div ref={panel} tabIndex={-1} className={`fade-in relative max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl focus:outline-none ${width}`}>{children}</div>
     </div>
   );
 };

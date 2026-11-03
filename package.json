@@ -3,8 +3,17 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "description": "Catatan keuangan pribadi yang berjalan sepenuhnya di browser.",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "build": "node scripts/make-images.mjs && vite build && node scripts/postbuild.mjs"
+    "dev": "vite",
+    "build": "node scripts/make-images.mjs && vite build && node scripts/postbuild.mjs",
+    "preview": "vite preview",
+    "test": "node --test",
+    "check": "node scripts/check.mjs",
+    "lint": "node scripts/check.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.460.0",

@@ -1,9 +1,10 @@
-import { addDays, monthKey, today } from './format.js';
+import { addDays, addMonths, monthKey, today } from './format.js';
+import { DEFAULT_RATES } from './money.js';
 
 export const BRAND = 'uangku';
-export const COMPANY = 'PT Contoh Karya';
-export const CONTACT_EMAIL = 'halo@contoh.id';
-export const ADDRESS = 'Gedung Contoh lt. 10, Jl. Contoh No. 1, Jakarta 10000.';
+export const COMPANY = 'Catatan Keuangan Pribadi';
+export const CONTACT_EMAIL = 'halo@uangku.app';
+export const ADDRESS = 'Data tersimpan di perangkatmu sendiri.';
 
 let counter = 0;
 export const uid = (prefix = 'id') => `${prefix}-${Date.now().toString(36)}-${(counter += 1)}`;
@@ -36,51 +37,57 @@ export const defaultCategories = () => [
 ];
 
 export const defaultWallets = () => [
-  { id: 'w-bank-a', name: 'Bank Satu', type: 'Tabungan', color: '#01478a', initial: 2500000 },
-  { id: 'w-bank-b', name: 'Bank Dua', type: 'Tabungan', color: '#0288d1', initial: 1200000 },
-  { id: 'w-cash', name: 'Tunai', type: 'Tunai', color: '#4caf50', initial: 400000 },
+  { id: 'w-bank-a', name: 'Rekening Utama', type: 'Tabungan', color: '#01478a', initial: 0, currency: 'IDR' },
+  { id: 'w-bank-b', name: 'Tabungan', type: 'Tabungan', color: '#0288d1', initial: 0, currency: 'IDR' },
+  { id: 'w-cash', name: 'Tunai', type: 'Tunai', color: '#4caf50', initial: 0, currency: 'IDR' },
+];
+
+export const sampleWallets = () => [
+  { id: 'w-bank-a', name: 'Rekening Utama', type: 'Tabungan', color: '#01478a', initial: 2500000, currency: 'IDR' },
+  { id: 'w-bank-b', name: 'Tabungan', type: 'Tabungan', color: '#0288d1', initial: 1200000, currency: 'IDR' },
+  { id: 'w-cash', name: 'Tunai', type: 'Tunai', color: '#4caf50', initial: 400000, currency: 'IDR' },
 ];
 
 const sampleRows = [
-  [0, 'expense', 'makan', 'Warung nasi', 45000, 'w-bank-a'],
-  [0, 'expense', 'makan', 'Kopi pagi', 28000, 'w-cash'],
-  [1, 'expense', 'transportasi', 'Bensin', 150000, 'w-bank-a'],
-  [1, 'expense', 'groceries', 'Belanja mingguan', 320000, 'w-bank-b'],
-  [2, 'income', 'freelance', 'Proyek desain', 750000, 'w-bank-a'],
-  [2, 'expense', 'hiburan', 'Nonton film', 75000, 'w-bank-b'],
-  [3, 'expense', 'tagihan', 'Listrik', 280000, 'w-bank-a'],
-  [4, 'expense', 'kesehatan', 'Vitamin', 95000, 'w-bank-b'],
-  [5, 'expense', 'makan', 'Makan malam keluarga', 210000, 'w-bank-a'],
-  [6, 'expense', 'belanja', 'Kemeja kerja', 185000, 'w-bank-b'],
-  [8, 'expense', 'transportasi', 'Ojek ke kantor', 32000, 'w-cash'],
-  [9, 'expense', 'tagihan', 'Internet rumah', 350000, 'w-bank-a'],
-  [11, 'expense', 'makan', 'Makan siang', 38000, 'w-cash'],
-  [14, 'expense', 'pendidikan', 'Kursus daring', 250000, 'w-bank-b'],
-  [18, 'income', 'gaji', 'Gaji bulanan', 7500000, 'w-bank-a'],
-  [19, 'expense', 'investasi', 'Reksadana rutin', 1000000, 'w-bank-a'],
-  [22, 'expense', 'groceries', 'Belanja bulanan', 640000, 'w-bank-b'],
-  [25, 'expense', 'keluarga', 'Kirim untuk orang tua', 1000000, 'w-bank-a'],
-  [29, 'expense', 'makan', 'Restoran akhir pekan', 265000, 'w-bank-b'],
-  [33, 'expense', 'transportasi', 'Servis motor', 420000, 'w-bank-a'],
-  [38, 'expense', 'tagihan', 'Listrik', 265000, 'w-bank-a'],
-  [48, 'income', 'gaji', 'Gaji bulanan', 7500000, 'w-bank-a'],
-  [52, 'expense', 'groceries', 'Belanja bulanan', 590000, 'w-bank-b'],
-  [58, 'expense', 'hiburan', 'Liburan singkat', 1250000, 'w-bank-a'],
-  [78, 'income', 'gaji', 'Gaji bulanan', 7500000, 'w-bank-a'],
-  [82, 'expense', 'groceries', 'Belanja bulanan', 610000, 'w-bank-b'],
-  [90, 'expense', 'belanja', 'Peralatan rumah', 880000, 'w-bank-a'],
-  [108, 'income', 'gaji', 'Gaji bulanan', 7500000, 'w-bank-a'],
-  [112, 'expense', 'tagihan', 'Internet rumah', 350000, 'w-bank-a'],
-  [120, 'expense', 'makan', 'Makan bersama teman', 340000, 'w-bank-b'],
-  [138, 'income', 'gaji', 'Gaji bulanan', 7000000, 'w-bank-a'],
-  [145, 'expense', 'kesehatan', 'Periksa gigi', 450000, 'w-bank-b'],
-  [168, 'income', 'gaji', 'Gaji bulanan', 7000000, 'w-bank-a'],
-  [175, 'expense', 'transportasi', 'Tiket kereta', 390000, 'w-bank-a'],
+  [0, 'expense', 'makan', 'Warung nasi', 45000, 'w-bank-a', ['makan']],
+  [0, 'expense', 'makan', 'Kopi pagi', 28000, 'w-cash', ['kopi']],
+  [1, 'expense', 'transportasi', 'Bensin', 150000, 'w-bank-a', []],
+  [1, 'expense', 'groceries', 'Belanja mingguan', 320000, 'w-bank-b', ['rumah']],
+  [2, 'income', 'freelance', 'Proyek desain', 750000, 'w-bank-a', ['kerja']],
+  [2, 'expense', 'hiburan', 'Nonton film', 75000, 'w-bank-b', ['akhir-pekan']],
+  [3, 'expense', 'tagihan', 'Listrik', 280000, 'w-bank-a', ['rumah']],
+  [4, 'expense', 'kesehatan', 'Vitamin', 95000, 'w-bank-b', []],
+  [5, 'expense', 'makan', 'Makan malam keluarga', 210000, 'w-bank-a', ['keluarga']],
+  [6, 'expense', 'belanja', 'Kemeja kerja', 185000, 'w-bank-b', ['kerja']],
+  [8, 'expense', 'transportasi', 'Ojek ke kantor', 32000, 'w-cash', []],
+  [9, 'expense', 'tagihan', 'Internet rumah', 350000, 'w-bank-a', ['rumah']],
+  [11, 'expense', 'makan', 'Makan siang', 38000, 'w-cash', []],
+  [14, 'expense', 'pendidikan', 'Kursus daring', 250000, 'w-bank-b', ['belajar']],
+  [18, 'income', 'gaji', 'Gaji bulanan', 7500000, 'w-bank-a', ['gaji']],
+  [19, 'expense', 'investasi', 'Reksadana rutin', 1000000, 'w-bank-a', ['investasi']],
+  [22, 'expense', 'groceries', 'Belanja bulanan', 640000, 'w-bank-b', ['rumah']],
+  [25, 'expense', 'keluarga', 'Kirim untuk orang tua', 1000000, 'w-bank-a', ['keluarga']],
+  [29, 'expense', 'makan', 'Restoran akhir pekan', 265000, 'w-bank-b', ['akhir-pekan']],
+  [33, 'expense', 'transportasi', 'Servis motor', 420000, 'w-bank-a', []],
+  [38, 'expense', 'tagihan', 'Listrik', 265000, 'w-bank-a', ['rumah']],
+  [48, 'income', 'gaji', 'Gaji bulanan', 7500000, 'w-bank-a', ['gaji']],
+  [52, 'expense', 'groceries', 'Belanja bulanan', 590000, 'w-bank-b', ['rumah']],
+  [58, 'expense', 'hiburan', 'Liburan singkat', 1250000, 'w-bank-a', []],
+  [78, 'income', 'gaji', 'Gaji bulanan', 7500000, 'w-bank-a', ['gaji']],
+  [82, 'expense', 'groceries', 'Belanja bulanan', 610000, 'w-bank-b', ['rumah']],
+  [90, 'expense', 'belanja', 'Peralatan rumah', 880000, 'w-bank-a', ['rumah']],
+  [108, 'income', 'gaji', 'Gaji bulanan', 7500000, 'w-bank-a', ['gaji']],
+  [112, 'expense', 'tagihan', 'Internet rumah', 350000, 'w-bank-a', ['rumah']],
+  [120, 'expense', 'makan', 'Makan bersama teman', 340000, 'w-bank-b', []],
+  [138, 'income', 'gaji', 'Gaji bulanan', 7000000, 'w-bank-a', ['gaji']],
+  [145, 'expense', 'kesehatan', 'Periksa gigi', 450000, 'w-bank-b', []],
+  [168, 'income', 'gaji', 'Gaji bulanan', 7000000, 'w-bank-a', ['gaji']],
+  [175, 'expense', 'transportasi', 'Tiket kereta', 390000, 'w-bank-a', ['liburan']],
 ];
 
 export const sampleState = () => {
   const now = today();
-  const transactions = sampleRows.map(([ago, type, categoryId, note, amount, walletId], index) => ({
+  const transactions = sampleRows.map(([ago, type, categoryId, note, amount, walletId, tags], index) => ({
     id: `t-${index + 1}`,
     type,
     categoryId,
@@ -89,8 +96,11 @@ export const sampleState = () => {
     walletId,
     date: addDays(now, -ago),
     excluded: false,
+    tags,
+    createdAt: addDays(now, -ago),
   }));
   return {
+    wallets: sampleWallets(),
     transactions,
     budgets: [
       {
@@ -126,21 +136,59 @@ export const sampleState = () => {
         records: [{ id: 'r-2', direction: 'i-owe', amount: 150000, note: 'Patungan makan', date: addDays(now, -2), paid: false }],
       },
     ],
+    goals: [
+      { id: 'g-1', name: 'Dana Darurat', target: 10000000, walletId: 'w-bank-b', deadline: addMonths(now, 6), note: 'Enam bulan biaya hidup.', created: now },
+    ],
+    holdings: [
+      { id: 'h-1', name: 'Reksadana Indeks', kind: 'Reksadana', units: 100, buyPrice: 10000, currentPrice: 11500, note: '' },
+      { id: 'h-2', name: 'Emas Antam 5g', kind: 'Emas', units: 5, buyPrice: 1200000, currentPrice: 1350000, note: '' },
+    ],
+    recurring: [
+      { id: 'rec-1', title: 'Internet rumah', amount: 350000, type: 'expense', categoryId: 'tagihan', walletId: 'w-bank-a', frequency: 'monthly', nextDate: addDays(now, 5), active: true },
+    ],
+    rules: [
+      { id: 'rule-1', keyword: 'kopi', categoryId: 'makan', type: 'expense', active: true },
+    ],
+    splits: [
+      {
+        id: 'split-1',
+        title: 'Makan malam bareng',
+        date: addDays(now, -3),
+        taxPct: 10,
+        servicePct: 0,
+        note: '',
+        participants: [{ id: 'p-1', name: 'Aku', paid: false }, { id: 'p-2', name: 'Teman', paid: false }],
+        items: [{ id: 'i-1', name: 'Nasi goreng', amount: 90000, sharedBy: ['p-1', 'p-2'] }],
+      },
+    ],
+    chat: [],
   };
 };
 
-export const initialState = () => ({
+export const emptyState = () => ({
   loggedIn: false,
   onboarded: false,
-  user: { name: 'Pengguna Contoh', email: 'contoh@uangku.id', premium: false },
+  user: { name: 'Pengguna', email: 'pengguna@lokal', premium: true },
+  profileAnswers: {},
   wallets: defaultWallets(),
   categories: defaultCategories(),
-  features: { chat: true, struk: true, hutang: true, tujuan: true, anggaran: true, tag: true },
+  features: { chat: true, struk: true, hutang: true, tujuan: true, anggaran: true, tag: true, split: true, portofolio: true, berulang: true, aturan: true },
   startDay: 1,
-  integrations: { whatsapp: false, telegram: false },
+  rates: { ...DEFAULT_RATES },
+  currency: 'IDR',
+  integrations: { whatsapp: false, telegram: false, email: false },
   chat: [],
-  ...sampleState(),
+  transactions: [],
+  budgets: [],
+  contacts: [],
+  goals: [],
+  holdings: [],
+  recurring: [],
+  rules: [],
+  splits: [],
 });
+
+export const initialState = emptyState;
 
 export const templates = [
   { id: 'seimbang', name: 'Seimbang', split: { needs: 50, wants: 30, savings: 20 }, text: 'Aturan klasik 50/30/20. Cocok untuk kebanyakan orang.' },

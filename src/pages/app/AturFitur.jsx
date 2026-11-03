@@ -1,15 +1,19 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Camera, Flag, Handshake, MessageCircle, Tag, Target } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Camera, Flag, Handshake, LineChart, MessageCircle, Sparkles, Tag, Target, Users } from 'lucide-react';
 import { Toggle } from '../../components/ui.jsx';
 import { useStore } from '../../lib/store.jsx';
 
 const items = [
   ['chat', 'Chat', 'Catat lewat chat.', MessageCircle],
-  ['struk', 'Foto struk', 'Isi nominal dari foto struk.', Camera],
+  ['struk', 'Foto struk', 'Lampirkan foto struk pada transaksi.', Camera],
   ['hutang', 'Hutang piutang', 'Catat siapa berutang dan jatuh temponya.', Handshake],
   ['tujuan', 'Tujuan keuangan', 'Menabung untuk satu tujuan.', Flag],
   ['anggaran', 'Anggaran', 'Batas belanja per bulan.', Target],
   ['tag', 'Tag', 'Kelompokkan catatan, misalnya satu liburan.', Tag],
+  ['split', 'Split bill', 'Bagi tagihan per orang.', Users],
+  ['portofolio', 'Portofolio', 'Pantau nilai aset investasi.', LineChart],
+  ['berulang', 'Transaksi berulang', 'Tagihan rutin tercatat sendiri.', CalendarClock],
+  ['aturan', 'Aturan otomatis', 'Kategori terisi dari kata kunci.', Sparkles],
 ];
 
 export default function AturFitur() {

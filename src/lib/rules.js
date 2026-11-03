@@ -14,11 +14,16 @@ export const applyRules = (rules, note, categoryId, type = 'expense') => {
 
 export const normalizeTags = (input) => {
   const list = Array.isArray(input) ? input : String(input || '').split(',');
-  return [...new Set(list
-    .map((tag) => String(tag).trim().replace(/^#+/, '').replace(/\s+/g, ' '))
-    .filter(Boolean)
-    .map((tag) => tag.slice(0, 24)))]
-    .slice(0, 12);
+  const seen = new Set();
+  const tags = [];
+  list.forEach((value) => {
+    const tag = String(value).trim().replace(/^#+/, '').replace(/\s+/g, ' ').slice(0, 24);
+    const key = tag.toLowerCase();
+    if (!tag || seen.has(key)) return;
+    seen.add(key);
+    tags.push(tag);
+  });
+  return tags.slice(0, 12);
 };
 
 export const tagCounts = (transactions) => {

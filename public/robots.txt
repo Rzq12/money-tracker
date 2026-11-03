@@ -1,0 +1,21 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /transactions
+Disallow: /laporan
+Disallow: /anggaran
+Disallow: /aset
+Disallow: /akun
+Disallow: /pengaturan
+Disallow: /backup
+Disallow: /tujuan
+Disallow: /portofolio
+Disallow: /berulang
+Disallow: /aturan
+Disallow: /split
+Disallow: /import
+Disallow: /integrasi
+Disallow: /chat
+Disallow: /debt
+
+Sitemap: https://uangku.app/sitemap.xml

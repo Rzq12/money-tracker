@@ -1,47 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Send, Trash2 } from 'lucide-react';
-import { useStore, walletBalance } from '../../lib/store.jsx';
-import { parseAmount, rupiah, today } from '../../lib/format.js';
+import { useStore } from '../../lib/store.jsx';
+import { understand } from '../../lib/parse.js';
+import { rupiah } from '../../lib/format.js';
 import { BRAND, uid } from '../../lib/seed.js';
-
-const KEYWORDS = [
-  [/kopi|makan|minum|jajan|nasi|bakso|sarapan|warung|resto/, 'makan'],
-  [/bensin|ojek|ojol|grab|taksi|parkir|tol|kereta|bus/, 'transportasi'],
-  [/listrik|internet|pulsa|air|tagihan|wifi/, 'tagihan'],
-  [/belanja|baju|sepatu/, 'belanja'],
-  [/sayur|sembako|groceries|pasar/, 'groceries'],
-  [/nonton|game|film|hiburan/, 'hiburan'],
-  [/obat|dokter|vitamin|sakit/, 'kesehatan'],
-  [/kursus|buku|sekolah/, 'pendidikan'],
-];
-const INCOME = /gaji|bonus|terima|dapat|masuk|honor|transferan/;
-
-/** A simple rule-based reader; the original uses an AI service for this. */
-export const understand = (text, { wallets, transactions }) => {
-  const lower = text.toLowerCase();
-  if (/saldo/.test(lower)) {
-    const list = wallets.map((w) => `${w.name}: ${rupiah(walletBalance(w, transactions))}`).join('\n');
-    return { reply: `Saldo kamu saat ini:\n${list}` };
-  }
-  const amount = parseAmount(lower);
-  if (!amount) return { reply: 'Aku belum paham. Coba tulis seperti "makan siang 25rb" atau tanya "saldo".' };
-  const income = INCOME.test(lower);
-  const hit = KEYWORDS.find(([re]) => re.test(lower));
-  const wallet = wallets.find((w) => lower.includes(w.name.toLowerCase())) || wallets[0];
-  const note = text.replace(/(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta)?\b/i, '').replace(/\bpakai\b.*$/i, '').trim();
-  return {
-    pending: {
-      type: income ? 'income' : 'expense',
-      categoryId: income ? 'pemasukan-lain' : hit?.[1] || 'lain-lain',
-      amount,
-      note: note || (income ? 'Pemasukan' : 'Pengeluaran'),
-      walletId: wallet?.id,
-      date: today(),
-      excluded: false,
-    },
-  };
-};
 
 export default function Chat() {
   const { chat, setChat, wallets, transactions, saveTransaction, categories } = useStore();

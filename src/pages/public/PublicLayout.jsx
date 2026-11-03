@@ -46,7 +46,7 @@ const footer = [
 ];
 
 export const StoreLink = ({ className, style, children }) => (
-  <a href="#unduh" onClick={(e) => e.preventDefault()} className={className} style={style}>{children}</a>
+  <Link to="/masuk" className={className} style={style}>{children}</Link>
 );
 
 function Header() {
@@ -85,11 +85,10 @@ function Footer() {
         <div className="flex flex-wrap gap-10">
           <div className="min-w-0 flex-[2_1_260px]">
             <Logo />
-            <p className="mt-3.5 max-w-80 text-sm leading-relaxed text-ink-soft">Contoh aplikasi catatan keuangan dari {COMPANY}. {ADDRESS}</p>
+            <p className="mt-3.5 max-w-80 text-sm leading-relaxed text-ink-soft">Aplikasi catatan keuangan pribadi. {ADDRESS}</p>
             <p className="mt-2.5 text-sm"><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <StoreLink className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">App Store</StoreLink>
-              <StoreLink className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">Google Play</StoreLink>
+              <StoreLink className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">Buka aplikasi</StoreLink>
             </div>
           </div>
           {footer.map(([title, links]) => (

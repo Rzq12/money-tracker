@@ -15,6 +15,13 @@ const miniLogo = (x, y) => c(x + 7, y + 7, 7, '#29b6f6') + c(x + 7, y + 7, 2.8, 
 
 writeFileSync(join(out, 'logo.svg'), svg(106, 32, c(15, 17, 15, '#29b6f6') + c(15, 17, 6, '#fff') + t(34, 24, 20, 700, '#111827', 'uangku')));
 
+// App icons for the installable PWA. The maskable variant keeps art inside the safe zone.
+const icon = (size) => svg(size, size, r(0, 0, size, size, 0, '#01478a') + c(size / 2, size / 2, size * 0.3, '#29b6f6') + c(size / 2, size / 2, size * 0.1, '#fff'));
+const maskable = (size) => svg(size, size, r(0, 0, size, size, 0, '#01478a') + c(size / 2, size / 2, size * 0.22, '#29b6f6') + c(size / 2, size / 2, size * 0.075, '#fff'));
+writeFileSync(join(out, 'icon-192.svg'), icon(192));
+writeFileSync(join(out, 'icon-512.svg'), icon(512));
+writeFileSync(join(out, 'icon-maskable.svg'), maskable(512));
+
 const rows = [
   ['#01478a', 'Warung nasi', 'Makan · dari notifikasi', 'Rp45.000', '#c2410c'],
   ['#01478a', 'Transfer masuk', 'Belum ada kategori', 'Rp250.000', '#0277bd'],
